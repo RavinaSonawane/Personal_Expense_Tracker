@@ -597,6 +597,87 @@ def import_from_excel(excel_path=DEFAULT_EXCEL, db_path=DEFAULT_DB):
     return imported_count
 
 
+def inspect_excel(excel_path=DEFAULT_EXCEL, db_path=DEFAULT_DB):
+    """
+    Print an inspection of the Excel workbook in terminal,
+    showing both worksheets, data rows, formulas, and calculated totals.
+    """
+    if openpyxl is None:
+        raise ImportError("openpyxl is required to view Excel. Run 'pip install openpyxl'.")
+
+    if not os.path.exists(excel_path):
+        print(f"Excel file '{excel_path}' not found. Generating now...")
+        export_to_excel(db_path, excel_path)
+
+    wb = openpyxl.load_workbook(excel_path, data_only=False)
+
+    print("\n" + "=" * 75)
+    print(f" 📑 EXCEL WORKBOOK INSPECTION: {excel_path}")
+    print("=" * 75)
+    print(f"Sheets Found in Workbook: {wb.sheetnames}\n")
+
+    # 1. Daily Expenses
+    ws1 = wb["Daily Expenses"]
+    print("━" * 75)
+    print(f" ▶ TAB 1: [{ws1.title}] - Daily Expense Records")
+    print("━" * 75)
+    print(f"{'ID':<4} {'Date':<12} {'Category':<14} {'Title':<20} {'Amount':>10}")
+    print("-" * 75)
+
+    count = 0
+    for r in range(2, ws1.max_row + 1):
+        id_val = ws1.cell(row=r, column=1).value
+        date_val = ws1.cell(row=r, column=2).value
+        cat_val = ws1.cell(row=r, column=3).value
+        title_val = ws1.cell(row=r, column=4).value
+        amt_val = ws1.cell(row=r, column=5).value
+
+        if not title_val and amt_val is None and not date_val:
+            continue
+
+        count += 1
+        d_str = date_val.strftime("%Y-%m-%d") if isinstance(date_val, (datetime, dt_date)) else str(date_val)
+        amt_str = f"${float(amt_val):>9.2f}" if amt_val is not None else "$    0.00"
+        print(f"{str(id_val or ''):<4} {d_str:<12} {str(cat_val or ''):<14} {str(title_val or '')[:18]:<20} {amt_str}")
+
+    print("-" * 75)
+    print(f"Active Records: {count} | Pre-configured entry rows with formulas ready: ~150")
+
+    # 2. Summary & Analytics
+    ws2 = wb["Summary & Analytics"]
+    print("\n" + "━" * 75)
+    print(f" ▶ TAB 2: [{ws2.title}] - Calculated Summaries & Formulas")
+    print("━" * 75)
+
+    tot = get_total_expenses(db_path)
+    cat_summary = get_category_summary(db_path)
+
+    print("📊 Real-Time KPI Cards (Live Excel Formulas):")
+    print(f"  • Total Spending       : ${tot:.2f}  [Formula: {ws2['B5'].value}]")
+    print(f"  • Total Transactions   : {count} transactions  [Formula: {ws2['C5'].value}]")
+    print(f"  • This Week's Spending : Formula: {ws2['D5'].value}")
+    print(f"  • This Month's Spending: Formula: {ws2['E5'].value}")
+    print(f"  • This Year's Spending : Formula: {ws2['F5'].value}")
+
+    print("\n🗓️ Monthly Summary Table (Formulas):")
+    print(f"  • Month: {ws2['A10'].value} ({ws2['B10'].value}) -> Formula: {ws2['C10'].value}")
+    print(f"  • Month: {ws2['A19'].value} ({ws2['B19'].value}) -> Formula: {ws2['C19'].value}")
+
+    print("\n📅 Weekly Summary Schedule (Weeks 1 to 52):")
+    print(f"  • Sample Week 01 -> Formula: {ws2['G10'].value}")
+    print(f"  • Sample Week 41 -> Formula: {ws2['G50'].value}")
+
+    print("\n📆 Yearly Summary Table (Formulas):")
+    print(f"  • Year 2026 -> Formula: {ws2['C28'].value}")
+
+    print("\n🏷️ Category Spending Breakdown:")
+    for cat, amt in cat_summary.items():
+        pct = (amt / tot * 100) if tot > 0 else 0
+        bar = "█" * int(pct // 10)
+        print(f"  • {cat:<14}: ${amt:>7.2f} ({pct:>5.1f}%) {bar}")
+    print("=" * 75 + "\n")
+
+
 def run_demo(db_path=DEFAULT_DB, excel_path=DEFAULT_EXCEL):
     """Run an automated demonstration of the expense tracker and generate Excel file."""
     print("=" * 60)
@@ -639,7 +720,11 @@ def main():
     """Command-line interface entry point."""
     args = sys.argv[1:]
 
-    if "--export-excel" in args:
+    if "--view-excel" in args:
+        idx = args.index("--view-excel")
+        file_path = args[idx + 1] if idx + 1 < len(args) else DEFAULT_EXCEL
+        inspect_excel(file_path, DEFAULT_DB)
+    elif "--export-excel" in args:
         idx = args.index("--export-excel")
         out_path = args[idx + 1] if idx + 1 < len(args) else DEFAULT_EXCEL
         export_to_excel(DEFAULT_DB, out_path)
@@ -655,3 +740,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

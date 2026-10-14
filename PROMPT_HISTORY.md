@@ -55,3 +55,20 @@ Even if you return after a month or a year, the AI assistant will read this file
   - Created new unit tests in `test_expense_tracker.py` (`test_export_to_excel` and `test_import_from_excel`), bringing total passing test suite to 10 tests (100% pass rate).
   - Updated `README.md` with complete documentation on using the Excel document and synchronization commands.
 
+---
+
+### Entry #5: Testing & Viewing Excel File and Output
+- **Date / Time:** 2026-10-14 17:28 (Local time)
+- **User Request / Prompt:**
+  > *"now how i can test and see excel file and output"*
+- **Actions Taken:**
+  - Added `inspect_excel()` and the CLI flag `--view-excel` in `expense_tracker.py` to directly print a formatted console view of both Excel tabs (`Daily Expenses` and `Summary & Analytics`), showing rows, formulas, and totals.
+  - Created `generate_preview.py` which produces an interactive HTML preview (`expense_tracker_preview.html`) allowing visual inspection of both sheets in any web browser or IDE preview.
+  - Documented 4 distinct ways to test and view the Excel output:
+    1. **Terminal Inspection:** `python3 expense_tracker.py --view-excel`
+    2. **Automated Test Suite:** `pytest -v` (all 10 tests passing)
+    3. **HTML Visual Dashboard:** Open `expense_tracker_preview.html` in browser
+    4. **Direct Excel Application:** Open `expense_tracker.xlsx` in Microsoft Excel, LibreOffice Calc, Google Sheets, or IDE.
+  - Committed and pushed all updates to GitHub.
+
+
