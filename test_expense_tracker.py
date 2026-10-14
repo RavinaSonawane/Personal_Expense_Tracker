@@ -2,6 +2,8 @@
 #  Tests for Personal Expense & Budget Tracker
 # =========================================================
 
+import os
+import openpyxl
 import pytest
 from expense_tracker import (
     init_db,
@@ -10,6 +12,8 @@ from expense_tracker import (
     get_total_expenses,
     get_category_summary,
     delete_expense,
+    export_to_excel,
+    import_from_excel,
 )
 
 
@@ -100,3 +104,74 @@ def test_delete_expense(temp_db):
     # Delete non-existent ID
     deleted_again = delete_expense(9999, temp_db)
     assert deleted_again is False
+
+
+def test_export_to_excel(temp_db, tmp_path):
+    """Test exporting SQLite expenses to formatted Excel document with both tabs."""
+    add_expense("Groceries", 65.50, "Food", "2026-10-10", temp_db)
+    add_expense("Internet", 50.00, "Bills", "2026-10-12", temp_db)
+
+    excel_file = str(tmp_path / "test_export.xlsx")
+    saved_path = export_to_excel(temp_db, excel_file)
+    assert os.path.exists(saved_path)
+
+    wb = openpyxl.load_workbook(saved_path, data_only=False)
+    assert "Daily Expenses" in wb.sheetnames
+    assert "Summary & Analytics" in wb.sheetnames
+
+    # Check Daily Expenses tab headers and rows
+    ws_daily = wb["Daily Expenses"]
+    assert ws_daily.cell(row=1, column=1).value == "ID"
+    assert ws_daily.cell(row=1, column=5).value == "Amount ($)"
+    assert ws_daily.cell(row=1, column=6).value == "Week Num"
+
+    # Row 2 (first expense)
+    assert ws_daily.cell(row=2, column=3).value == "Food"
+    assert ws_daily.cell(row=2, column=4).value == "Groceries"
+    assert ws_daily.cell(row=2, column=5).value == 65.50
+    # Check Week, Month, Year formulas
+    assert "ISOWEEKNUM" in str(ws_daily.cell(row=2, column=6).value)
+    assert "yyyy-mm" in str(ws_daily.cell(row=2, column=7).value)
+    assert "YEAR" in str(ws_daily.cell(row=2, column=8).value)
+
+    # Check Summary & Analytics tab
+    ws_sum = wb["Summary & Analytics"]
+    assert "SUMMARY & ANALYTICS" in str(ws_sum["A1"].value)
+    assert "=SUM('Daily Expenses'!E2:E1000)" == ws_sum["B5"].value
+    # Monthly formula check
+    assert "=SUMIF('Daily Expenses'!$G$2:$G$1000, A10, 'Daily Expenses'!$E$2:$E$1000)" == ws_sum["C10"].value
+    # Weekly formula check
+    assert "=SUMIF('Daily Expenses'!$F$2:$F$1000, E10, 'Daily Expenses'!$E$2:$E$1000)" == ws_sum["G10"].value
+
+
+def test_import_from_excel(temp_db, tmp_path):
+    """Test importing new expenses entered in the Excel document back to SQLite."""
+    # Export empty or base db
+    add_expense("Coffee", 4.50, "Food", "2026-10-10", temp_db)
+    excel_file = str(tmp_path / "test_sync.xlsx")
+    export_to_excel(temp_db, excel_file)
+
+    # User opens Excel and types a new expense into row 3
+    wb = openpyxl.load_workbook(excel_file)
+    ws = wb["Daily Expenses"]
+    ws.cell(row=3, column=2, value="2026-10-15")
+    ws.cell(row=3, column=3, value="Shopping")
+    ws.cell(row=3, column=4, value="Running Shoes")
+    ws.cell(row=3, column=5, value=89.99)
+    wb.save(excel_file)
+
+    # Run import
+    imported = import_from_excel(excel_file, temp_db)
+    assert imported == 1
+
+    # Verify the new record is saved in SQLite
+    all_expenses = get_all_expenses(temp_db)
+    assert len(all_expenses) == 2
+    titles = [e["title"] for e in all_expenses]
+    assert "Running Shoes" in titles
+    assert get_total_expenses(temp_db) == round(4.50 + 89.99, 2)
+
+    # Re-importing should not duplicate
+    reimported = import_from_excel(excel_file, temp_db)
+    assert reimported == 0
+    assert len(get_all_expenses(temp_db)) == 2
